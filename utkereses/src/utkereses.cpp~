@@ -32,7 +32,7 @@ void usage(){
 
 int main(int argc, char* args[]){
 	
-	std::cout.imbue(std::locale(std::cout.getloc(), new punct_facet<char, ','>));
+	std::cout.imbue(std::locale(std::cout.getloc(), new DecimalSeparator<char>(',')));
 
    typedef adjacency_list < listS, vecS, undirectedS,
     no_property, property < edge_weight_t, double > > graph_t;

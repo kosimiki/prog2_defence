@@ -1,0 +1,2 @@
+$ mvn clean compile package assembly:single
+$ java -jar target/petramegjelenito-0.0.1-jar-with-dependencies.jar 
