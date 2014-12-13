@@ -1,0 +1,7 @@
+To compile:
+cd build
+cmake
+make
+To run:
+./utkereses_project Debrecen.osm 47.5473985 21.6549096 47.5388691 21.6388303 >in
+

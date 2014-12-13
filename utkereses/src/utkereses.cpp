@@ -1,0 +1,251 @@
+#include <iostream>
+#include <osmium/io/any_input.hpp>
+#include <boost/bimap.hpp>
+#include <osmium/geom/haversine.hpp>
+#include <osmium/geom/coordinates.hpp>
+#include <set>
+
+#include <string>   
+
+
+
+#include <iostream>
+#include <fstream>
+
+#include <boost/config.hpp>
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/dijkstra_shortest_paths.hpp>
+#include <boost/graph/graph_traits.hpp>
+
+
+
+using namespace boost;
+
+void usage(){
+  std::cout<<"./ways infile.osm lat1 lon1 lat2 lon2"<<std::endl;
+}
+
+
+int main(int argc, char* args[]){
+
+   typedef adjacency_list < listS, vecS, undirectedS,
+    no_property, property < edge_weight_t, double > > graph_t;
+  typedef graph_traits < graph_t >::vertex_descriptor vertex_descriptor;
+  typedef graph_traits < graph_t >::edge_descriptor edge_descriptor;
+  typedef std::pair<unsigned long int, unsigned long int> Edge;
+
+    std::vector<double> tavolsagok;
+    std::vector<Edge> elek;
+    std::set< unsigned long int > unique_nodok;
+  
+  if(argc!=6){
+   usage();
+   exit(1);
+  }
+  
+  osmium::Location loc1(std::stod(args[3]),std::stod(args[2]));
+  osmium::Location loc2(std::stod(args[5]),std::stod(args[4]));
+  
+  boost::bimap< unsigned long int, osmium::Location> nodeok;
+  boost::bimap< unsigned long int, std::vector< unsigned long int> > utak;
+      
+  osmium::io::File terkep(args[1]);
+  osmium::io::Reader reader(terkep, osmium::osm_entity_bits::all);
+  osmium::io::Header header = reader.header();
+  reader.close();
+  osmium::io::Reader reader2(terkep, osmium::osm_entity_bits::node);
+  
+  double min_lon = header.box().bottom_left().lon();
+  double min_lat = header.box().bottom_left().lat();
+  double max_lon = header.box().top_right().lon();
+  double max_lat = header.box().top_right().lat();
+
+  if(loc1.lon()<min_lon || loc1.lon()>max_lon || loc1.lat()<min_lat || loc1.lat()>max_lat){
+    std::cout<<"loc1 coordinates out of bounds "<<args[1]<<std::endl; 
+  }
+
+  if(loc2.lon()<min_lon || loc2.lon()>max_lon || loc2.lat()<min_lat || loc2.lat()>max_lat){
+    std::cout<<"loc2 coordinates out of bounds "<<args[1]<<std::endl; 
+  }
+  
+  /*std::cout<<"Min lon "<<min_lon<<std::endl;
+  std::cout<<"max lon "<<max_lon<<std::endl;
+  std::cout<<"Min lat "<<min_lat<<std::endl;
+  std::cout<<"Max lat "<<max_lat<<std::endl;*/
+    
+   unsigned long int nearest1, nearest1Utca;
+   unsigned long int nearest2, nearest2Utca;
+
+  int min1 = 1000;
+  int min2 = 1000;
+  int temp;
+  
+   while (osmium::memory::Buffer mBuffer = reader2.read())
+        {
+          
+            for(auto& e : mBuffer)
+            {
+                osmium::Node& node = static_cast<osmium::Node&>(e);
+                nodeok.insert({node.id(), node.location()});
+            }
+        }
+        
+    osmium::io::Reader reader3(terkep, osmium::osm_entity_bits::way);
+    while (osmium::memory::Buffer mBuffer = reader3.read())
+        {       
+            for(auto& e : mBuffer){
+                
+                std::vector< unsigned long int > v;
+                osmium::Way& way = static_cast<osmium::Way&>(e);
+                
+                // ha nem gyalog út és ilyenek akkor vesszük őket fel
+                const char* highway = way.tags() ["highway"];
+                  if ( highway )
+                    if ( strcmp ( highway, "footway" )
+                       && strcmp ( highway, "cycleway" )
+                       && strcmp ( highway, "bridleway" )
+                       && strcmp ( highway, "steps" )
+                       && strcmp ( highway, "path" )
+                       && strcmp ( highway, "construction" ) ){       
+                      //const char* oneway = way.tags() ["oneway"];
+                      //if(oneway)
+                      {                    
+                      for(auto& nd :way.nodes()){
+
+
+                         osmium::geom::Coordinates l1 {loc1};
+                         osmium::geom::Coordinates l2 {loc2};
+                         
+                         auto it = nodeok.left.find(nd.ref()); // teszteljük majd le right ra is nem tudom még pontosan mi van itt most
+                         osmium::geom::Coordinates cur {it->second};
+                         if( (temp = osmium::geom::haversine::distance ( l1, cur )) < min1){
+                           nearest1Utca = way.id();
+                           min1  = temp;
+                           nearest1 = nd.ref();
+                         }
+                         if( (temp = osmium::geom::haversine::distance ( l2, cur )) < min2){
+                           nearest2Utca = way.id();
+                           min2  = temp;
+                           nearest2 = nd.ref();
+                         }
+                
+
+                        v.push_back(nd.ref());
+                       }
+                    utak.insert({way.id(), v});
+                     }                
+               
+              }
+            }
+        }
+
+        //-------------------------------------------------------------
+      
+        // Hozzuk létre az éleket
+        boost::bimap< unsigned long int, std::vector< unsigned long int> >::iterator iter;
+        for (iter = utak.begin(); iter != utak.end(); ++iter){ // végig megyünk az utcákon
+            for(int j = 0; j< (iter->right.size()-1); j++){ // egyes utcán
+                elek.push_back(std::pair< unsigned long int,  unsigned long int>(iter->right.at(j), iter->right.at(j+1))); //  new Edge
+
+                 auto it1 = nodeok.left.find(iter->right.at(j));   
+                osmium::geom::Coordinates c1 {it1->second};
+                auto it2 = nodeok.left.find(iter->right.at(j+1));   
+                osmium::geom::Coordinates c2 {it2->second};
+                tavolsagok.push_back( osmium::geom::haversine::distance ( c1, c2 ) ); // new distance
+                unique_nodok.insert(iter->right.at(j));
+                unique_nodok.insert(iter->right.at(j+1));
+            }
+
+        }
+  
+    reader3.close();
+    
+    if(nearest1 != 0){
+          auto it = nodeok.left.find(nearest1);
+         // std::cout<< it->first <<" "<< it->second.x()<<" " <<it->second.y() <<std::endl;
+        }
+         if(nearest2 != 0){
+          auto it2 = nodeok.left.find(nearest2);
+         // std::cout<< it2->first <<" "<< it2->second.x()<<" "<< it2->second.y() <<std::endl;
+        }
+        
+  
+   // std::cout<<"Elso koordinata utcaja: "<< nearest1Utca <<std::endl;
+    //std::cout<<"Masodik koordinata utcaja: "<< nearest2Utca <<std::endl;
+
+   
+      boost::bimap<int, unsigned long int> ver;
+      int db =0;
+
+       graph_t g(unique_nodok.size());
+      for(auto it = unique_nodok.begin(); it!=unique_nodok.end(); it++){
+          ver.insert({db, *it});
+    
+          db++;
+      }
+     
+
+    
+    property_map<graph_t, edge_weight_t>::type weightmap = get(edge_weight, g);
+
+   // std::cout<<"most?"<<std::endl;
+
+     for(int k = 0; k<elek.size(); k++){
+        //boost::add_edge(elek.at(2).first, elek.at(2).second, g);
+        
+        auto it = ver.right.find( elek.at(k).first);
+        auto it2 = ver.right.find( elek.at(k).second);
+
+        
+        edge_descriptor e; bool inserted;
+        tie(e, inserted) = add_edge(it->second, it2->second, g);
+        weightmap[e] = tavolsagok.at(k);
+    
+    }
+       
+
+   // std::cout<<"ide jutunk el"<<std::endl;
+
+  std::vector<vertex_descriptor> p(num_vertices(g));
+  std::vector<double> d(num_vertices(g));
+
+
+      auto near = ver.right.find(  nearest1 );
+      vertex_descriptor s = boost::vertex(near->second , g);
+  //vertex_descriptor s = vertex(80, g);
+
+ // std::cout<<"meg ide"<<std::endl;
+
+  property_map<graph_t, vertex_index_t>::type indexmap = get(vertex_index, g);
+  dijkstra_shortest_paths(g, s, &p[0], &d[0], weightmap, indexmap, 
+                          std::less<double>(), closed_plus<double>(), 
+                          (std::numeric_limits<double>::max)(), 0,
+                          default_dijkstra_visitor());
+
+      auto near2 = ver.right.find(  nearest2 );
+      vertex_descriptor target = boost::vertex(near2->second , g);
+  //int target = vertex(83, g);
+  std::vector<int> nodes;
+  std::vector<double> distance;
+  do{
+     nodes.push_back(target);
+     distance.push_back(d[target]);
+     //std::cout<<"mostani és szülő"<< target<< " " << p[target]<<std::endl;
+     target = p[target];
+  }while(target != s);
+  
+ // std::cout<<"Legrovidebb ut Atol D ig \n";
+  for(int i = 0; i<nodes.size(); i++){
+      auto n = ver.left.find( nodes.at(i));
+      auto coords = nodeok.left.find(n->second);
+
+    std::cout<<     coords->second.lat() <<" "<< coords->second.lon()<<std::endl;
+
+  }
+    auto coords = nodeok.left.find(nearest1);
+    std::cout<< coords->second.lat()<<" "<<coords->second.lon()<<std::endl; 
+    google::protobuf::ShutdownProtobufLibrary();
+    reader2.close();
+
+return 0;
+}
