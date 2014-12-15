@@ -4,14 +4,9 @@
 #include <osmium/geom/haversine.hpp>
 #include <osmium/geom/coordinates.hpp>
 #include <set>
-
 #include <string>   
-
-
-
 #include <iostream>
 #include <fstream>
-
 #include <boost/config.hpp>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/dijkstra_shortest_paths.hpp>
@@ -79,8 +74,7 @@ int main(int argc, char* args[]){
   std::cout<<"Min lat "<<min_lat<<std::endl;
   std::cout<<"Max lat "<<max_lat<<std::endl;*/
     
-   unsigned long int nearest1, nearest1Utca;
-   unsigned long int nearest2, nearest2Utca;
+   unsigned long int nearest1 , nearest2;
 
   int min1 = 1000;
   int min2 = 1000;
@@ -113,8 +107,7 @@ int main(int argc, char* args[]){
                        && strcmp ( highway, "steps" )
                        && strcmp ( highway, "path" )
                        && strcmp ( highway, "construction" ) ){       
-                      //const char* oneway = way.tags() ["oneway"];
-                      //if(oneway)
+                     
                       {                    
                       for(auto& nd :way.nodes()){
 
@@ -125,12 +118,12 @@ int main(int argc, char* args[]){
                          auto it = nodeok.left.find(nd.ref()); // teszteljük majd le right ra is nem tudom még pontosan mi van itt most
                          osmium::geom::Coordinates cur {it->second};
                          if( (temp = osmium::geom::haversine::distance ( l1, cur )) < min1){
-                           nearest1Utca = way.id();
+                          
                            min1  = temp;
                            nearest1 = nd.ref();
                          }
                          if( (temp = osmium::geom::haversine::distance ( l2, cur )) < min2){
-                           nearest2Utca = way.id();
+                           
                            min2  = temp;
                            nearest2 = nd.ref();
                          }
@@ -150,7 +143,7 @@ int main(int argc, char* args[]){
         // Hozzuk létre az éleket
         boost::bimap< unsigned long int, std::vector< unsigned long int> >::iterator iter;
         for (iter = utak.begin(); iter != utak.end(); ++iter){ // végig megyünk az utcákon
-            for(int j = 0; j< (iter->right.size()-1); j++){ // egyes utcán
+            for(unsigned int j = 0; j< (iter->right.size()-1); j++){ // egyes utcán
                 elek.push_back(std::pair< unsigned long int,  unsigned long int>(iter->right.at(j), iter->right.at(j+1))); //  new Edge
 
                  auto it1 = nodeok.left.find(iter->right.at(j));   
@@ -166,14 +159,14 @@ int main(int argc, char* args[]){
   
     reader3.close();
     
-    if(nearest1 != 0){
+    /*if(nearest1 != 0){
           auto it = nodeok.left.find(nearest1);
-         // std::cout<< it->first <<" "<< it->second.x()<<" " <<it->second.y() <<std::endl;
+          std::cout<< it->first <<" "<< it->second.x()<<" " <<it->second.y() <<std::endl;
         }
          if(nearest2 != 0){
           auto it2 = nodeok.left.find(nearest2);
-         // std::cout<< it2->first <<" "<< it2->second.x()<<" "<< it2->second.y() <<std::endl;
-        }
+          std::cout<< it2->first <<" "<< it2->second.x()<<" "<< it2->second.y() <<std::endl;
+        }*/
         
   
    // std::cout<<"Elso koordinata utcaja: "<< nearest1Utca <<std::endl;
@@ -196,7 +189,7 @@ int main(int argc, char* args[]){
 
    // std::cout<<"most?"<<std::endl;
 
-     for(int k = 0; k<elek.size(); k++){
+     for(unsigned int k = 0; k<elek.size(); k++){
         //boost::add_edge(elek.at(2).first, elek.at(2).second, g);
         
         auto it = ver.right.find( elek.at(k).first);
@@ -241,7 +234,7 @@ int main(int argc, char* args[]){
   }while(target != s);
   
  // std::cout<<"Legrovidebb ut Atol D ig \n";
-  for(int i = 0; i<nodes.size(); i++){
+  for(unsigned int i = 0; i<nodes.size(); i++){
       auto n = ver.left.find( nodes.at(i));
       auto coords = nodeok.left.find(n->second);
 
